@@ -1,0 +1,329 @@
+---
+title: "Strings and Factors"
+author: "Molly Martorella"
+date: "10/15/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(rvest)
+library(p8105.datasets)
+
+```
+
+# Strings:
+* common operations: concatenate, shorten, subset, truncate, replacing one string segment with another.
+* stringr package good for majority of string needs.
+
+## Regular Expressions:
+* generic pattern you want to match.
+
+# Factors:
+* categorical label sitting on top of a numerical structure.
+* make a difference when considering: linear models, order of objects in your plot.
+* operations: releveling manually or by count or by second variable, can rename levels, dropping unused levels, converting to factor using as.factor().
+* forcats package.
+
+# Strings and regex
+
+Can do any of this with a dataframe, put it into mutate.
+
+```{r}
+
+string_vec = c("my", "name", "is", "jeff")
+
+# str_ prefix --> every function within stringr package will start with this. String is always the first argument in these functions.
+
+# detect a pattern inside of a string (presence or absence, returns a logical):
+str_detect(string_vec, "jeff")
+
+#OR can look for partial:
+str_detect(string_vec, "je")
+
+#how to detect pattern in df and get index rather than logical?
+```
+
+```{r}
+
+str_replace(string_vec, "jeff", "Jeff")
+
+str_replace(string_vec, "m", "M")
+
+```
+
+```{r}
+
+string_vec = c(
+  "i think we all rule for participating",
+  "i think i have been caught",
+  "i think this will be quite fun actually",
+  "it will be fun, i think"
+  )
+
+str_detect(string_vec, "i think")
+
+#if want to know which lines start, end, or neither for the desired pattern.
+# carrot ^ indicates "starts with"
+
+str_detect(string_vec, "^i think")
+
+#$ indicates "ends with"
+
+str_detect(string_vec, "i think$")
+
+```
+
+```{r}
+
+string_vec = c(
+  "Y'all remember Pres. HW Bush?",
+  "I saw a green bush",
+  "BBQ and Bushwalking at Molonglo Gorge",
+  "BUSH -- LIVE IN CONCERT!!"
+  )
+
+
+# [] to detect any match with capital B or lower case b.
+
+str_detect(string_vec,"[Bb]ush")
+
+#notice -- it does not detect BUSH
+
+#[] allows you to give a variety of options, can input ranges of letters, like [A-D].
+
+```
+
+```{r}
+
+string_vec = c(
+  '7th inning stretch',
+  '1st half soon to begin. Texas won the toss.',
+  'she is 5 feet 4 inches tall',
+  '3AM - cant sleep :('
+  )
+
+#if you want a number followed by any letter. 
+
+str_detect(string_vec, "^[0-9][a-zA-Z]")
+
+#does not do the same thing:
+str_detect(string_vec, "^[0-9][a-z][A-Z]")
+#this looks for number letter capital letter, rather than number letter (lower or upper).
+
+```
+
+```{r}
+
+string_vec = c(
+  'Its 7:11 in the evening',
+  'want to go to 7-11?',
+  'my flight is AA711',
+  'NetBios: scanning ip 203.167.114.66'
+  )
+
+# period . is used to indicate matching of any character at all:
+# only specifies one character though
+
+str_detect(string_vec, "7.11")
+
+```
+
+## Special regex characters
+
+period, bracket, (), etc...
+
+Some characters are “special”. These include [ and ], ( and ), and .. If you want to search for these, you have to indicate they’re special using \. Unfortunately, \ is also special, so things get weird.
+
+
+```{r}
+
+string_vec = c(
+  'The CI is [2, 5]',
+  ':-]',
+  ':-[',
+  'I found the answer on pages [6-7]'
+  )
+
+# need to indicate [ is now a character and not the beginning of a range. 
+# one back slash \ is a special character itself, so need to use double backslash \\ to not use \ special character ability, basically to indicate, escape.
+
+str_detect(string_vec, "\\[")
+
+#these end up the same (diff from above though):
+
+str_detect(string_vec, "\\[]")
+
+str_detect(string_vec, "\\[\\]")
+
+#to detect backslash
+
+str_detect(string_vec, "\\\\")
+
+```
+
+```{r}
+
+# idk this data won't load
+
+# pulse_data <- 
+#   haven::read_sas("public_pulse_data.sas7bdat") %>% 
+#   janitor::clean_names() %>% 
+#   pivot_longer(bdi_score_bl:bdi_score_12m, 
+#                names_to = "visit", 
+#                names_prefix = "bdi_score_", 
+#                values_to = "bdi") %>% 
+#   select(id, visit, everything()) %>% 
+#   mutate(visit = str_replace(visit, "bl", "00m"), 
+#          visit = fct_relevel(visit, str_c(c("00", "01", "06", "12"), "m"))) %>%
+#   arrange(id, visit)
+# 
+# print(pulse_data, n = 12)
+
+```
+
+```{r}
+
+nsduh_url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+
+table_marj = 
+  read_html(nsduh_url) %>% 
+  html_nodes(css = "table") %>% 
+  .[[1]] %>%
+  html_table() %>%
+  slice(-1) %>%
+  as_tibble()
+
+#terrible, need to tidy:
+#can use regular expressions in contains if you want to.
+# separate is going to separate based on where it findas first (
+
+table_marj %>% 
+  select(-contains("P Value")) %>% 
+  pivot_longer(
+    -State,
+    names_to = "age_year",
+    values_to = "percent"
+  ) %>% 
+  separate(age_year, into = c("age", "year"), sep = "\\(") %>% 
+  mutate(
+    year = str_replace(year, "\\)", ""),
+    percent = str_replace(percent, "[a-c]$", ""),
+    percent = as.numeric(percent)
+  )
+
+
+data_marj <- 
+  table_marj %>%
+  select(-contains("P Value")) %>%
+  pivot_longer(
+    -State,
+    names_to = "age_year", 
+    values_to = "percent") %>%
+  separate(age_year, into = c("age", "year"), sep = "\\(") %>%
+  mutate(
+    year = str_replace(year, "\\)", ""),
+    percent = str_replace(percent, "[a-c]$", ""),
+    percent = as.numeric(percent)) %>%
+  filter(!(State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West")))
+
+```
+
+# Factors
+
+```{r}
+
+vec_sex = factor(c("male", "male", "female", "female"))
+vec_sex
+
+#default uses alphabetical ordering
+
+as.numeric(vec_sex)
+
+vec_sex = relevel(vec_sex, ref = "male")
+vec_sex
+
+as.numeric(vec_sex)
+
+```
+
+```{r}
+
+weather_df <- 
+  rnoaa::meteo_pull_monitors(c("USW00094728", "USC00519397", "USS0023B17S"),
+                             var = c("PRCP", "TMIN", "TMAX"), 
+                             date_min = "2017-01-01", 
+                             date_max = "2017-12-31") %>% 
+  mutate(name = recode(id, 
+                       USW00094728 = "CentralPark_NY", 
+                       USC00519397 = "Waikiki_HA", 
+                       USS0023B17S = "Waterhole_WA"),
+         tmin = tmin / 10,
+         tmax = tmax / 10) %>% 
+  select(name, id, everything())
+
+#manual releveling:
+
+weather_df %>%
+  mutate(name = forcats::fct_relevel(name, c("Waikiki_HA", "CentralPark_NY", "Waterhole_WA"))) %>% 
+  ggplot(aes(x = name, y = tmax)) + 
+  geom_violin(aes(fill = name), color = "blue", alpha = .5) + 
+  theme(legend.position = "bottom")
+
+#releveling factor variable according to the levels of another factor variable:
+
+weather_df %>%
+  mutate(name = forcats::fct_reorder(name, tmax)) %>% 
+  ggplot(aes(x = name, y = tmax)) + 
+  geom_violin(aes(fill = name), color = "blue", alpha = .5) + 
+  theme(legend.position = "bottom")
+
+```
+
+```{r}
+
+weather_df %>%
+  lm(tmax ~ name, data = .)
+
+weather_df %>%
+  mutate(name = forcats::fct_relevel(name, c("Waikiki_HA", "CentralPark_NY", "Waterhole_WA"))) %>% 
+  lm(tmax ~ name, data = .)
+
+#implicit ordering affects linear model fitting.
+
+```
+
+
+```{r}
+data("nyc_airbnb")
+
+# fct_reorder the neighborhood variable according to the price variable.
+
+nyc_airbnb %>%
+  filter(neighbourhood_group == "Manhattan") %>% 
+  mutate(
+    neighbourhood = fct_reorder(neighbourhood, price, na.rm = TRUE)) %>% 
+  ggplot(aes(x = neighbourhood, y = price)) +
+  geom_boxplot() +
+  coord_flip() + 
+  ylim(0, 1000)
+
+# coord_flip is easiest way to make boxplot that runs hozizontally rather than vertically. Use ylim to zoom/cut off extreme values.
+
+# VS:
+
+nyc_airbnb %>%
+  filter(neighbourhood_group == "Manhattan") %>% 
+  ggplot(aes(x = neighbourhood, y = price)) +
+  geom_boxplot() +
+  coord_flip() + 
+  ylim(0, 1000)
+
+```
+
+
+
+
+
